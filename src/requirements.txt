@@ -1,4 +1,3 @@
-kalshi_python_async
 dotenv
-urllib
 requests
+cryptography
