@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 class KalshiClient:
     """
-    Wrapper class for the KalshiClient class from Kalshi.
+    Wrapper class for the Kalshi API with basic HTTP calls.
     their implementation so buns ts pmo 💔😭
     """
     def __init__(self, key_id: str, key_path: str, env: str = "demo"):
@@ -133,6 +133,9 @@ class KalshiClient:
         res = self._request("GET", "/portfolio/balance")
         balance = res.get("balance")
         return balance / 100
+
+    def get_market(self, ticker: str) -> dict:
+        return self._request("GET", f"/markets/{ticker}")
 
     def get_event(self, ticker: str, with_nested_markets=True) -> dict:
         """
