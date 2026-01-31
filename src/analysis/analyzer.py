@@ -3,62 +3,11 @@ import time
 import tqdm
 
 from kalshi.kalshi_client import KalshiClient
+from .market import Market
+from .opportunity import Opportunity
+from .batch import Batch
 
 
-class Market:
-    """
-    Data structure to contain relevant market information.
-    ticker: market ticker
-    yes_ask: price of yes ask in cents
-    no_ask: price of no ask in cents
-    exp_date: market expiration date
-    """
-    def __init__(
-            self,
-            ticker: str,
-            yes_ask: int,
-            no_ask: int,
-            exp_date: str
-    ):
-        self.ticker = ticker
-        self.yes_ask = yes_ask / 100
-        self.no_ask = no_ask / 100
-        self.exp_date = self._process_date(exp_date)
-
-    def _process_date(self, date: str) -> datetime:
-        """
-        Convert ISO 8601 date string to datetime object.
-        
-        :param date: ISO 8601 formatted date string (e.g., "2023-11-07T05:31:56Z")
-        :type date: str
-        :return: Parsed datetime object
-        :rtype: datetime
-        """
-        # replace 'Z' with '+00:00' for ISO format compatibility
-        if date.endswith('Z'):
-            date = date[:-1] + '+00:00'
-        return datetime.fromisoformat(date)
-
-
-class Opportunity:
-    """
-    Data strucutre to contain opportunity data for an event
-    """
-    def __init__(
-            self,
-            title: str,
-            event_ticker: str,
-            type: str,
-            total_cost: int,
-            profit: int,
-            constituents: list[Market]
-    ):
-        self.title = title
-        self.event_ticker = event_ticker
-        self.type = type
-        self.total_cost = total_cost
-        self.profit = profit
-        self.constituents = constituents
 
 class Analyzer(KalshiClient):
     """
@@ -214,7 +163,7 @@ class Analyzer(KalshiClient):
                     
         return all_opportunities
 
-    def find_opportunities(self, target_amount: int=5) -> list[Opportunity]:
+    def find_opportunities(self, target_amount: int=5) -> Batch:
         """
         Continuously searches markets until the target amount of arbitrage opportunities is found.
         Handles pagination and rate limiting.
@@ -254,4 +203,5 @@ class Analyzer(KalshiClient):
                 if not cursor:
                     break
                 
-        return all_opportunities
+        return Batch(all_opportunities)
+

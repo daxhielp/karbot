@@ -24,7 +24,6 @@ class KalshiClient:
             return
 
 
-
         # load api key
         print("Loading api key file...")
         try:
@@ -66,8 +65,6 @@ class KalshiClient:
         self.balance = self.get_balance()
         self.read_limit = res.get("read_limit", 20)
         self.write_limit = res.get("write_limit", 20)
-
-
 
     def _request(self, method: str, path: str, params: Optional[dict]=None, json_data: Optional[dict]=None) -> dict:
         """
