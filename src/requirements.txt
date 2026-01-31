@@ -2,3 +2,5 @@ dotenv
 requests
 cryptography
 tqdm
+rich
+questionary

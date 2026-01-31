@@ -17,8 +17,8 @@ class Opportunity:
         self.title = title
         self.event_ticker = event_ticker
         self.type = type
-        self.total_cost = total_cost
-        self.profit = profit
+        self.total_cost = total_cost / 100
+        self.profit = profit / 100
         self.constituents = constituents
 
         # TODO
