@@ -23,7 +23,7 @@ def print_markets(event: Opportunity, limit: int=10):
     print("Markets:")
     printed = 0
     for m in event.constituents:
-        if printed == limit:
+        if printed == limit and limit != 0:
             print("...")
             break
         print_market(m, e.type)
@@ -51,4 +51,4 @@ for i, e in enumerate(prospects):
     print(f"Expected total cost for at-price bid: ${cost:.2f}")
     print(f"Expected profit for at-price bid: ${profit:.2f}")
 
-    print_markets(e, 5)
+    print_markets(e, 0)

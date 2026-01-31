@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 import time
+import tqdm
+
 from kalshi.kalshi_client import KalshiClient
 
 
@@ -220,33 +222,36 @@ class Analyzer(KalshiClient):
         all_opportunities = []
         cursor = None
         
-        while len(all_opportunities) < target_amount:
-            # Respect read limit
-            # Default to 1 second sleep if limit is unknown or 0, otherwise 1.1/limit
-            sleep_time = 1.0
-            if hasattr(self, 'read_limit') and self.read_limit > 0:
-                sleep_time = 1.1 / self.read_limit
-            time.sleep(sleep_time)
+        with tqdm.tqdm(total=target_amount, desc="Finding opportunities", unit="opp") as pbar:
+            while len(all_opportunities) < target_amount:
+                # Respect read limit
+                # Default to 1 second sleep if limit is unknown or 0, otherwise 1.1/limit
+                sleep_time = 1.0
+                if hasattr(self, 'read_limit') and self.read_limit > 0:
+                    sleep_time = 1.1 / self.read_limit
+                time.sleep(sleep_time)
 
-            params = {}
-            if cursor:
-                params['cursor'] = cursor
-            
-            # batch size of 100 for efficiency
-            events_data = self.get_events(limit=100, **params)
-            events = events_data.get("events", [])
-            cursor = events_data.get("cursor")
-            
-            if not events:
-                break
+                params = {}
+                if cursor:
+                    params['cursor'] = cursor
                 
-            for event in events:
-                opportunities = self.process_event(event)
-                all_opportunities.extend(opportunities)
-                if len(all_opportunities) >= target_amount:
+                # batch size of 100 for efficiency
+                events_data = self.get_events(limit=100, **params)
+                events = events_data.get("events", [])
+                cursor = events_data.get("cursor")
+                
+                if not events:
                     break
-            
-            if not cursor:
-                break
+                    
+                for event in events:
+                    opportunities = self.process_event(event)
+                    if opportunities:
+                        all_opportunities.extend(opportunities)
+                        pbar.update(len(opportunities))
+                    if len(all_opportunities) >= target_amount:
+                        break
+                
+                if not cursor:
+                    break
                 
         return all_opportunities
