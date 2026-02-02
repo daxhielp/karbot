@@ -25,6 +25,24 @@ Consider an election with 3 candidates (A, B, C):
 **Guaranteed payout**: 100¢ (one candidate must win)  
 **Risk-free profit**: 10¢ per bundle
 
+## How to Run
+
+To start the interactive CLI:
+
+```bash
+cd src
+python main.py
+```
+
+### CLI Overview
+
+The Karbot CLI provides a modern, interactive terminal interface using `rich` and `questionary`. It serves as the primary entry point for the application, offering the following features:
+
+- **Interactive Menu**: Easy navigation through bot capabilities.
+- **Find Opportunities**: Scan Kalshi markets for arbitrage opportunities with customizable parameters (target count, refresh rate).
+- **View Batches**: Display detailed tables of found opportunities, including costs, profits, and constituent markets.
+- **Settings**: Configure environment (Demo/Prod) and other preferences directly from the interface.
+
 ## Core Functionality
 
 ### Architecture
@@ -36,7 +54,7 @@ The bot is organized into three main components:
    - Provides methods for querying events, markets, and account balance
    - Manages rate limiting and request signing
 
-2. **Analyzer** (`src/analyzer.py`):
+2. **Analyzer** (`src/analysis/analyzer.py`):
    - Extends KalshiClient with arbitrage detection logic
    - Filters valid markets based on status and price bounds
    - Identifies bundle long and bundle short opportunities
@@ -126,50 +144,7 @@ The bot validates each market by checking:
 4. Download the private key file (.pem)
 5. Copy the Key ID to your `.env` file
 
-## Usage
 
-### Running the Bot
-
-```bash
-cd src
-python main.py
-```
-
-### Configuration
-
-Edit `main.py` to configure:
-
-```python
-ENV = "demo"  # or "prod" for production
-
-# Find N arbitrage opportunities
-prospects = client.find_opportunities(target_amount=10)
-```
-
-### Output
-
-The bot displays:
-
-- Current account balance
-- Detected opportunities with event titles and tickers
-- Expected cost and profit for each opportunity
-- Constituent markets with pricing details
-
-Example output:
-
-```
-Balance: $10000.00
-
----------------------- Opportunity 1: ELECTION-2026 ----------------------
-Presidential Election Winner
-Expected total cost for at-price bid: $0.92
-Expected profit for at-price bid: $0.08
-
-Markets:
-Market: ELECTION-CANDIDATE-A
-Cost of entry per contract: 30
-Expiration date: 2026-11-03 20:00:00+00:00
-```
 
 ## Project Structure
 
@@ -177,8 +152,14 @@ Expiration date: 2026-11-03 20:00:00+00:00
 karbot/
 ├── src/
 │   ├── main.py              # Entry point
-│   ├── analyzer.py          # Core arbitrage logic
 │   ├── requirements.txt     # Python dependencies
+│   ├── analysis/            # Core analysis logic
+│   │   ├── analyzer.py
+│   │   ├── batch.py
+│   │   ├── market.py
+│   │   └── opportunity.py
+│   ├── interface/           # CLI implementation
+│   │   └── cli.py
 │   ├── kalshi/
 │   │   └── kalshi_client.py # Kalshi API wrapper
 │   └── keys/
