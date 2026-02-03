@@ -63,6 +63,7 @@ The bot is organized into three main components:
 3. **Data Models**:
    - **Market**: Stores individual market data (ticker, prices, expiration)
    - **Opportunity**: Represents a detected arbitrage opportunity with constituent markets
+   - **Batch**: Stores information for all Opportunities to simplify processing. 
 
 ### Arbitrage Detection Algorithm
 
