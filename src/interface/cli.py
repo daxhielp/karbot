@@ -15,7 +15,7 @@ from analysis.analyzer import Analyzer
 from analysis.batch import Batch
 from analysis.opportunity import Opportunity
 from execution.executor import Executor
-from config.config_loader import load_execution_config
+from config.config_loader import load_execution_config, save_execution_config
 
 class KarbotCLI:
     def __init__(self):
@@ -24,19 +24,50 @@ class KarbotCLI:
         self.batch = None
         self.executor = None
         self.env = "demo" # Default
-        self.settings = {
-            "target_amount": 5,
-            "contract_limit": 1, # Placeholder
-        }
+        self.config = {}
         self.keys = {}
         
     def setup(self):
         self.console.clear()
-        self.console.print(Panel.fit("[bold cyan]Karbot CLI[/bold cyan]", border_style="cyan"))
+        banner = r"""
+$$\   $$\                    $$\                  $$\     
+$$ | $$  |                   $$ |                 $$ |    
+$$ |$$  / $$$$$$\   $$$$$$\  $$$$$$$\   $$$$$$\ $$$$$$\   
+$$$$$  /  \____$$\ $$  __$$\ $$  __$$\ $$  __$$\\_$$  _|  
+$$  $$<   $$$$$$$ |$$ |  \__|$$ |  $$ |$$ /  $$ | $$ |    
+$$ |\$$\ $$  __$$ |$$ |      $$ |  $$ |$$ |  $$ | $$ |$$\ 
+$$ | \$$\\$$$$$$$ |$$ |      $$$$$$$  |\$$$$$$  | \$$$$  |
+\__|  \__|\_______|\__|      \_______/  \______/   \____/
+"""
+        self.console.print(f"[bold cyan]{banner}[/bold cyan]")
         
         # Load .env
         load_dotenv()
         
+        # Load config
+        try:
+            self.config = load_execution_config()
+        except Exception as e:
+            self.console.print(f"[bold red]Failed to load config:[/bold red] {e}")
+            # Initialize with basic structure if failed
+            self.config = {
+                "execution": {
+                    "dry_run": True,
+                    "paper_trading": False,
+                    "thresholds": {"min_profit_cents": 5, "max_position_size_cents": 10000},
+                    "timing": {"execution_timeout_seconds": 60, "poll_interval_seconds": 2},
+                    "validation": {"refresh_prices": True}
+                },
+                "cli": {
+                    "target_amount": 5,
+                    "contract_limit": 1
+                }
+            }
+        
+        # Ensure cli section exists
+        if "cli" not in self.config:
+            self.config["cli"] = {"target_amount": 5, "contract_limit": 1}
+
         # Environment Selection
         self.env = questionary.select(
             "Select Environment:",
@@ -67,8 +98,7 @@ class KarbotCLI:
 
         # Initialize Executor
         try:
-            config = load_execution_config()
-            self.executor = Executor(self.analyzer, config)
+            self.executor = Executor(self.analyzer, self.config)
             mode_str = "Paper Trading" if self.executor.paper_trading else ("Dry Run" if self.executor.dry_run else "Live Execution")
             self.console.print(f"[bold green]Executor initialized ({mode_str})[/bold green]")
         except Exception as e:
@@ -115,7 +145,7 @@ class KarbotCLI:
 
         amount = questionary.text(
             "How many opportunities to find?",
-            default=str(self.settings["target_amount"]),
+            default=str(self.config["cli"].get("target_amount", 5)),
             validate=lambda text: text.isdigit() and int(text) > 0 or "Please enter a positive integer"
         ).ask()
         
@@ -217,7 +247,7 @@ class KarbotCLI:
                 market_positions = data.get("market_positions", [])
                 
                 # Filter for active positions
-                active_positions = [m for m in market_positions if m.get("position", 0) > 0]
+                active_positions = [m for m in market_positions if m.get("position", 0) != 0]
                 
             except Exception as e:
                 self.console.print(f"[bold red]Error fetching positions:[/bold red] {e}")
@@ -231,14 +261,14 @@ class KarbotCLI:
         table = Table(title="Current Market Positions")
         table.add_column("#", style="cyan")
         table.add_column("Market Ticker", style="white")
-        table.add_column("Position", justify="right")
+        table.add_column("Positions", justify="right")
         table.add_column("PnL ($)", justify="right", style="green")
 
         for i, pos in enumerate(active_positions, 1):
             table.add_row(
                 str(i),
                 pos.get("ticker", "N/A"),
-                str(pos.get("position", 0)),
+                str(abs(pos.get("position", 0))),             # Kalshi positions are negative if they are NO contracts
                 pos.get("realized_pnl_dollars", "0.00")
             )
 
@@ -286,7 +316,7 @@ class KarbotCLI:
                 continue
 
             elif action == "Sell":
-                max_qty = pos.get("position", 0)
+                max_qty = abs(pos.get("position", 0))
                 qty = questionary.text(f"Quantity to sell (Max {max_qty}):", default=str(max_qty), 
                                        validate=lambda x: x.isdigit() and 0 < int(x) <= max_qty).ask()
                 
@@ -328,32 +358,111 @@ class KarbotCLI:
             choice = questionary.select(
                 "Settings",
                 choices=[
-                    f"Target Amount (Current: {self.settings['target_amount']})",
-                    f"Contract Limit (Current: {self.settings['contract_limit']})",
-                    "Back"
+                    "CLI Settings (Target Amount, etc.)",
+                    "Execution Mode (Dry Run, Paper Trading)",
+                    "Thresholds (Profit, Position Size)",
+                    "Timing (Timeouts, Polling)",
+                    "Validation (Price Refresh, Deviation)",
+                    "Save & Back",
+                    "Cancel"
                 ]
             ).ask()
             
-            if choice == "Back" or choice is None:
+            if choice == "Cancel" or choice is None:
+                # Reload config to discard changes if cancelled
+                try:
+                    self.config = load_execution_config()
+                except:
+                    pass
                 break
             
-            if "Target Amount" in choice:
-                 amount = questionary.text(
-                    "New target amount:",
-                    default=str(self.settings["target_amount"]),
-                    validate=lambda text: text.isdigit() and int(text) > 0
+            if choice == "Save & Back":
+                try:
+                    save_execution_config(self.config)
+                    # Re-initialize executor with new config
+                    if self.analyzer:
+                        self.executor = Executor(self.analyzer, self.config)
+                    self.console.print("[bold green]Settings saved and applied.[/bold green]")
+                except Exception as e:
+                    self.console.print(f"[bold red]Failed to save settings:[/bold red] {e}")
+                break
+
+            exec_cfg = self.config.get("execution", {})
+            cli_cfg = self.config.get("cli", {})
+
+            if choice == "CLI Settings (Target Amount, etc.)":
+                cli_cfg["target_amount"] = int(questionary.text(
+                    "Target Amount (Opportunities to find):",
+                    default=str(cli_cfg.get("target_amount", 5)),
+                    validate=lambda x: x.isdigit() and int(x) > 0
+                ).ask() or cli_cfg.get("target_amount", 5))
+                
+                cli_cfg["contract_limit"] = int(questionary.text(
+                    "Contract Limit (Placeholder):",
+                    default=str(cli_cfg.get("contract_limit", 1)),
+                    validate=lambda x: x.isdigit() and int(x) > 0
+                ).ask() or cli_cfg.get("contract_limit", 1))
+
+            elif choice == "Execution Mode (Dry Run, Paper Trading)":
+                exec_cfg["dry_run"] = questionary.confirm(
+                    "Dry Run (Simulate execution without real orders)?",
+                    default=exec_cfg.get("dry_run", True)
                 ).ask()
-                 if amount:
-                    self.settings["target_amount"] = int(amount)
-                    
-            elif "Contract Limit" in choice:
-                 limit = questionary.text(
-                    "New contract limit:",
-                    default=str(self.settings["contract_limit"]),
-                    validate=lambda text: text.isdigit() and int(text) > 0
+                
+                exec_cfg["paper_trading"] = questionary.confirm(
+                    "Paper Trading (Simulate fills based on market prices)?",
+                    default=exec_cfg.get("paper_trading", False)
                 ).ask()
-                 if limit:
-                    self.settings["contract_limit"] = int(limit)
+
+            elif choice == "Thresholds (Profit, Position Size)":
+                thresholds = exec_cfg.setdefault("thresholds", {})
+                
+                thresholds["min_profit_cents"] = int(questionary.text(
+                    "Minimum Profit (Cents):",
+                    default=str(thresholds.get("min_profit_cents", 5)),
+                    validate=lambda x: x.isdigit()
+                ).ask() or thresholds.get("min_profit_cents", 5))
+
+                thresholds["max_position_size_cents"] = int(questionary.text(
+                    "Max Position Size (Cents):",
+                    default=str(thresholds.get("max_position_size_cents", 10000)),
+                    validate=lambda x: x.isdigit()
+                ).ask() or thresholds.get("max_position_size_cents", 10000))
+
+                thresholds["min_time_to_expiry_hours"] = int(questionary.text(
+                    "Min Time to Expiry (Hours):",
+                    default=str(thresholds.get("min_time_to_expiry_hours", 24)),
+                    validate=lambda x: x.isdigit()
+                ).ask() or thresholds.get("min_time_to_expiry_hours", 24))
+
+            elif choice == "Timing (Timeouts, Polling)":
+                timing = exec_cfg.setdefault("timing", {})
+                
+                timing["execution_timeout_seconds"] = int(questionary.text(
+                    "Execution Timeout (Seconds):",
+                    default=str(timing.get("execution_timeout_seconds", 60)),
+                    validate=lambda x: x.isdigit()
+                ).ask() or timing.get("execution_timeout_seconds", 60))
+
+                timing["poll_interval_seconds"] = int(questionary.text(
+                    "Poll Interval (Seconds):",
+                    default=str(timing.get("poll_interval_seconds", 2)),
+                    validate=lambda x: x.isdigit()
+                ).ask() or timing.get("poll_interval_seconds", 2))
+
+            elif choice == "Validation (Price Refresh, Deviation)":
+                validation = exec_cfg.setdefault("validation", {})
+                
+                validation["refresh_prices"] = questionary.confirm(
+                    "Refresh Prices before execution?",
+                    default=validation.get("refresh_prices", True)
+                ).ask()
+
+                validation["max_price_deviation_percent"] = int(questionary.text(
+                    "Max Price Deviation (%) before cancel:",
+                    default=str(validation.get("max_price_deviation_percent", 5)),
+                    validate=lambda x: x.isdigit()
+                ).ask() or validation.get("max_price_deviation_percent", 5))
 
     def execute_opportunities(self):
         if not self.executor:

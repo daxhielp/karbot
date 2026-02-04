@@ -41,3 +41,20 @@ def load_execution_config(path: str = "src/config/execution_config.yaml") -> dic
              raise ValueError(f"Invalid config: missing 'execution.{section}' section")
              
     return config
+
+def save_execution_config(config: dict, path: str = "src/config/execution_config.yaml"):
+    """
+    Saves the configuration dictionary to a yaml file.
+    
+    :param config: Configuration dictionary
+    :param path: Path to the yaml config file
+    """
+    # Try finding it relative to this file's directory if the path doesn't exist
+    if not os.path.exists(path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        alt_path = os.path.join(base_dir, "execution_config.yaml")
+        if os.path.exists(alt_path):
+            path = alt_path
+
+    with open(path, 'w') as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)

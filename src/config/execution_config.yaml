@@ -5,7 +5,7 @@ execution:
   paper_trading: false             # Experimental
   
   thresholds:
-    min_profit_cents: 5            # Minimum profit in cents
+    min_profit_cents: 1            # Minimum profit in cents
     min_profit_percentage: 0.5     # Minimum profit percentage
     max_position_size_cents: 10000 # Max total cost per arbitrage
     min_time_to_expiry_hours: 24   # Skip markets expiring within this window
@@ -19,3 +19,7 @@ execution:
   validation:
     refresh_prices: true           # Refresh orderbook before execution
     max_price_deviation_percent: 5 # Cancel if price moved more than this
+
+cli:
+  target_amount: 5
+  contract_limit: 1

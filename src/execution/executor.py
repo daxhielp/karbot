@@ -80,7 +80,16 @@ class Executor:
             return False, f"Failed to refresh event data: {e}"
         
         # Map of ticker -> market_data for O(1) lookup
-        fresh_markets_map = {m["ticker"]: m for m in event_data.get("markets", [])}
+        fresh_markets_map = {}
+        for m in event_data.get("markets", {}):
+            key = m.get("ticker")
+            value = m
+
+            ask_type = "yes" if opportunity.type == "long" else "no"
+            is_valid = self.client._valid_market(m, ask_type)
+            if not is_valid:
+                continue
+            fresh_markets_map.update({key: value})
 
         
         current_total_cost_cents = 0
@@ -106,6 +115,10 @@ class Executor:
                 price_cents = fresh_data.get("no_ask")
             else:
                 return False, f"Unknown opportunity type: {opportunity.type}"
+            
+            if price_cents == 0:
+                # both yes and no need to be available
+                continue
                 
             if price_cents is None:
                 self.logger.log_validation(opportunity.event_ticker, False, f"No liquidity: {market.ticker}")
@@ -116,14 +129,13 @@ class Executor:
         current_total_cost_dollars = current_total_cost_cents / 100.0
         
         # 3. Check Profitability
-        # Assuming typical arbitrage targets < $1.00 total cost for $1.00 payout
-        if current_total_cost_dollars >= 1.0:
+        if current_total_cost_dollars > opportunity.total_cost:
             self.logger.log_validation(opportunity.event_ticker, False, f"Not profitable: cost {current_total_cost_dollars}")
             return False, f"Opportunity no longer profitable: cost is ${current_total_cost_dollars:.2f}"
             
         # Check against min profit if cost increased
         # Expected profit per contract = $1.00 - cost
-        expected_profit_cents = 100 - current_total_cost_cents
+        expected_profit_cents = 100 * (len(fresh_markets_map) - 1) - current_total_cost_cents
         if expected_profit_cents < self.min_profit_cents:
              self.logger.log_validation(opportunity.event_ticker, False, f"Low profit: {expected_profit_cents}c")
              return False, f"Profit {expected_profit_cents}c is below minimum {self.min_profit_cents}c"
@@ -215,8 +227,10 @@ class Executor:
         orders = []
         for pos in positions:
             t = pos.get("market_ticker") or pos.get("ticker")
-            s = pos.get("side", "yes")
-            c = pos.get("position") if "position" in pos else pos.get("count", 0)
+            
+            pos_amt = pos.get("position")
+            s = "yes" if pos_amt > 0 else "no" # make sure nonzero positions are inserted as param
+            c = abs(pos_amt)
             
             if quantity:
                 c = min(c, quantity)
@@ -233,6 +247,7 @@ class Executor:
             except Exception:
                 pass
                 
+            price = 0.01 if price == 0 else price # limit orders must default to 1 cent if there are no bids in the market
             orders.append(Order(
                 ticker=t,
                 side=s,
@@ -265,7 +280,7 @@ class Executor:
         api_orders = []
         for order in orders:
             # API expects: ticker, action, side, count, type, yes_price/no_price
-            # For 'buy', we specify max price we are willing to pay?
+            # For 'buy', we specify max price we are willing to pay
             # Kalshi API:
             # action: 'buy' or 'sell'
             # side: 'yes' or 'no'
