@@ -41,6 +41,8 @@ The Karbot CLI provides a modern, interactive terminal interface using `rich` an
 - **Interactive Menu**: Easy navigation through bot capabilities.
 - **Find Opportunities**: Scan Kalshi markets for arbitrage opportunities with customizable parameters (target count, refresh rate).
 - **View Batches**: Display detailed tables of found opportunities, including costs, profits, and constituent markets.
+- **Execute Opportunities**: Directly execute found arbitrage opportunities with configurable contract quantities.
+- **Manage Positions**: View your current market positions, inspect market details, and sell positions directly from the CLI.
 - **Settings**: Configure environment (Demo/Prod) and other preferences directly from the interface.
 
 ## Core Functionality
@@ -60,7 +62,13 @@ The bot is organized into three main components:
    - Identifies bundle long and bundle short opportunities
    - Handles pagination to search through large numbers of events
 
-3. **Data Models**:
+3. **Executor** (`src/execution/executor.py`):
+   - Handles trade execution with risk checks (balance, position limits, profitability)
+   - Supports "Dry Run" and "Paper Trading" modes for safe testing
+   - Manages order creation (Buy/Sell), submission, and monitoring until filled
+   - Provides helper methods for selling existing positions
+
+4. **Data Models**:
    - **Market**: Stores individual market data (ticker, prices, expiration)
    - **Opportunity**: Represents a detected arbitrage opportunity with constituent markets
    - **Batch**: Stores information for all Opportunities to simplify processing. 
@@ -187,9 +195,9 @@ The bot automatically respects Kalshi API rate limits:
 
 ## Future Enhancements
 
-- [ ] Automated order placement
+- [x] Automated order placement (Basic execution implemented)
 - [ ] Real-time WebSocket monitoring
-- [ ] Portfolio tracking and P&L reporting
+- [x] Portfolio tracking and P&L reporting (Basic position management added)
 - [ ] Advanced filtering (minimum profit threshold, expiration date)
 - [ ] Support for non-mutually-exclusive arbitrage patterns
 
