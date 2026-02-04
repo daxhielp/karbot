@@ -64,9 +64,9 @@ The bot is organized into three main components:
 
 3. **Executor** (`src/execution/executor.py`):
    - Handles trade execution with risk checks (balance, position limits, profitability)
-   - Supports "Dry Run" and "Paper Trading" modes for safe testing
    - Manages order creation (Buy/Sell), submission, and monitoring until filled
    - Provides helper methods for selling existing positions
+   - Includes experimental "Dry Run" and "Paper Trading" modes for testing
 
 4. **Data Models**:
    - **Market**: Stores individual market data (ticker, prices, expiration)
@@ -195,11 +195,11 @@ The bot automatically respects Kalshi API rate limits:
 
 ## Future Enhancements
 
-- [x] Automated order placement (Basic execution implemented)
 - [ ] Real-time WebSocket monitoring
-- [x] Portfolio tracking and P&L reporting (Basic position management added)
 - [ ] Advanced filtering (minimum profit threshold, expiration date)
 - [ ] Support for non-mutually-exclusive arbitrage patterns
+- [x] Automated order placement (Basic execution implemented)
+- [x] Portfolio tracking and P&L reporting (Basic position management added)
 
 ## Disclaimer
 
