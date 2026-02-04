@@ -2,6 +2,7 @@ import requests
 from requests.exceptions import HTTPError
 import base64
 import time
+import concurrent.futures
 from typing import Optional
 
 from cryptography.hazmat.primitives import serialization, hashes
@@ -11,7 +12,6 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 class KalshiClient:
     """
     Wrapper class for the Kalshi API with basic HTTP calls.
-    their implementation so buns ts pmo 💔😭
     """
     def __init__(self, key_id: str, key_path: str, env: str = "demo"):
         self.key_id = key_id
@@ -131,6 +131,13 @@ class KalshiClient:
         balance = res.get("balance")
         return balance / 100
 
+    def get_positions(self, **params) -> dict:
+        """
+        Gets current portfolio positions.
+        Returns a dict with 'market_positions' and 'event_positions'.
+        """
+        return self._request("GET", "/portfolio/positions", params=params)
+
     def get_market(self, ticker: str) -> dict:
         return self._request("GET", f"/markets/{ticker}")
 
@@ -144,9 +151,11 @@ class KalshiClient:
         :return: response json as a dictionary
         :rtype: dict
         """
-        params = {"with_nested_markets": with_nested_markets}
-        res = self._request("GET", "/events/"+ticker, params=params)
-        return res
+
+        include_markets = "true" if with_nested_markets else "false"
+        param = "?with_nested_markets="+include_markets
+        res = self._request("GET", "/events/"+ticker+param)
+        return res.get("event", {})
 
     def get_events(self, limit: int=50, **params) -> dict:
         """
@@ -162,3 +171,70 @@ class KalshiClient:
         static_param = "?limit=" + str(limit) + "&with_nested_markets=true"
         res = self._request("GET", "/events"+static_param, params=params)
         return res
+
+    def place_orders(self, orders: list[dict]) -> list[dict]:
+        """
+        Places multiple orders simultaneously using threading.
+        
+        :param orders: List of order dictionaries with fields: ticker, action, side, count, type, etc.
+        :return: List of order response dictionaries
+        """
+        responses = []
+        
+        def place_single_order(order):
+            try:
+                # Ensure count is integer as API expects
+                if 'count' in order:
+                    order['count'] = int(order['count'])
+                return self._request("POST", "/portfolio/orders", json_data=order)
+            except Exception as e:
+                return {"error": str(e), "input_order": order}
+
+        # Use write_limit to cap concurrent requests
+        # Default to 5 workers if write_limit is not available or too high/low
+        max_workers = min(len(orders), getattr(self, 'write_limit', 10) or 10)
+        if max_workers < 1:
+            max_workers = 1
+            
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_order = {executor.submit(place_single_order, order): order for order in orders}
+            for future in concurrent.futures.as_completed(future_to_order):
+                try:
+                    data = future.result()
+                    responses.append(data)
+                except Exception as exc:
+                    responses.append({"error": str(exc), "input_order": future_to_order[future]})
+        
+        return responses
+
+    def get_order_status(self, order_id: str) -> dict:
+        """
+        Gets the status of a specific order.
+        
+        :param order_id: The ID of the order to check
+        :return: Order status dictionary or error dict
+        """
+        try:
+            return self._request("GET", f"/portfolio/orders/{order_id}")
+        except HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                return {"error": "Order not found", "order_id": order_id, "status": "not_found"}
+            # Re-raise other HTTP errors or handle them
+            print(f"Error fetching order {order_id}: {e}")
+            return {"error": str(e), "order_id": order_id, "status": "error"}
+        except Exception as e:
+            return {"error": str(e), "order_id": order_id, "status": "error"}
+
+    def cancel_order(self, order_id: str) -> bool:
+        """
+        Cancels a specific order.
+        
+        :param order_id: The ID of the order to cancel
+        :return: True if successful, False otherwise
+        """
+        try:
+            self._request("DELETE", f"/portfolio/orders/{order_id}")
+            return True
+        except Exception as e:
+            print(f"Error cancelling order {order_id}: {e}")
+            return False

@@ -1,0 +1,21 @@
+# Example execution config file.
+# This configuration is purposed for dry running.
+execution:
+  dry_run: false                   # If true, simulate execution without real orders
+  paper_trading: false             # Experimental
+  
+  thresholds:
+    min_profit_cents: 5            # Minimum profit in cents
+    min_profit_percentage: 0.5     # Minimum profit percentage
+    max_position_size_cents: 10000 # Max total cost per arbitrage
+    min_time_to_expiry_hours: 24   # Skip markets expiring within this window
+  
+  timing:
+    execution_timeout_seconds: 60  # Max time to wait for fills
+    poll_interval_seconds: 2       # Order status polling frequency
+    retry_max_attempts: 3          # Max retry attempts for failed requests
+    retry_base_delay_seconds: 1    # Base delay for exponential backoff
+  
+  validation:
+    refresh_prices: true           # Refresh orderbook before execution
+    max_price_deviation_percent: 5 # Cancel if price moved more than this
